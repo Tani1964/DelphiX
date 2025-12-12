@@ -42,6 +42,57 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim(); // Take control of all pages
 });
 
+// SOS Monitoring
+let sosCheckInterval = null;
+const SOS_CHECK_INTERVAL = 30000; // 30 seconds
+
+// Start SOS monitoring
+function startSOSMonitoring() {
+  if (sosCheckInterval) {
+    return; // Already monitoring
+  }
+
+  console.log('[Service Worker] Starting SOS monitoring');
+  sosCheckInterval = setInterval(() => {
+    checkSOSActivity();
+  }, SOS_CHECK_INTERVAL);
+}
+
+// Stop SOS monitoring
+function stopSOSMonitoring() {
+  if (sosCheckInterval) {
+    clearInterval(sosCheckInterval);
+    sosCheckInterval = null;
+    console.log('[Service Worker] Stopped SOS monitoring');
+  }
+}
+
+// Check SOS activity
+async function checkSOSActivity() {
+  try {
+    const response = await fetch('/api/sos/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ check: true }),
+    });
+
+    if (!response.ok) {
+      console.error('[Service Worker] SOS check failed');
+    }
+  } catch (error) {
+    console.error('[Service Worker] SOS check error:', error);
+  }
+}
+
+// Listen for messages from the page
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'START_SOS') {
+    startSOSMonitoring();
+  } else if (event.data && event.data.type === 'STOP_SOS') {
+    stopSOSMonitoring();
+  }
+});
+
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
