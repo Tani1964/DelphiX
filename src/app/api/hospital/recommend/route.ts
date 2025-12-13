@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth-config';
 import { findNearbyHospitals } from '@/lib/maps';
 import { getHospitalRecommendationsCollection, getUsersCollection } from '@/lib/mongodb';
 import { HospitalRecommendation } from '@/types';
+import { ObjectId } from 'mongodb';
 
 export async function POST(request: Request) {
   try {
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     // Update user location
     const users = await getUsersCollection();
     await users.updateOne(
-      { _id: session.user.id },
+      { _id: new ObjectId(session.user.id) },
       {
         $set: {
           location: {

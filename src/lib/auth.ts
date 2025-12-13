@@ -22,6 +22,7 @@ export async function createUser(userData: {
   email: string;
   password: string;
   name: string;
+  role?: 'user' | 'admin';
 }): Promise<User> {
   const users = await getUsersCollection();
   const hashedPassword = await hashPassword(userData.password);
@@ -30,7 +31,7 @@ export async function createUser(userData: {
     email: userData.email,
     password: hashedPassword,
     name: userData.name,
-    role: 'user',
+    role: userData.role || 'user',
     emergencyContacts: [],
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -41,5 +42,13 @@ export async function createUser(userData: {
     ...newUser,
     _id: result.insertedId.toString(),
   } as User;
+}
+
+export async function createAdminUser(userData: {
+  email: string;
+  password: string;
+  name: string;
+}): Promise<User> {
+  return createUser({ ...userData, role: 'admin' });
 }
 

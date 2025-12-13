@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Hospital } from '@/types';
 import { calculateDistance } from './utils';
 
@@ -29,7 +30,7 @@ export async function findNearbyHospitals(
       throw new Error(`Google Places API error: ${data.status}`);
     }
 
-    const hospitals: Hospital[] = (data.results || []).map((place) => {
+    const hospitals: Hospital[] = (data.results || []).map((place: { geometry: { location: { lat: number; lng: number; }; }; name: any; vicinity: any; formatted_address: any; rating: any; place_id: any; }) => {
       const distance = calculateDistance(
         lat,
         lng,

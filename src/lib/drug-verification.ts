@@ -15,6 +15,7 @@ export interface VerificationResult {
   drugInfo: Partial<DrugVerification['drugInfo']>;
   source: VerificationSource;
   ipfsCID?: string;
+  extractedNafdacCode?: string; // NAFDAC code extracted from image (if applicable)
 }
 
 /**
@@ -213,12 +214,18 @@ export async function registerDrugToIPFS(
       success: false,
       error: result.error || 'Failed to upload to IPFS',
     };
-  } catch (error: any) {
-    console.error('Register drug to IPFS error:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to register drug',
-    };
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    } else {
+      return {
+        success: false,
+        error: 'An error occurred',
+      };
+    }
   }
 }
 
@@ -280,34 +287,132 @@ export async function verifyDrugByNAFDAC(
 }
 
 /**
+ * Extract text from image using Google Cloud Vision API (OCR)
+ * Returns extracted text or null if OCR fails
+ */
+async function extractTextFromImage(imageFile: File): Promise<string | null> {
+  try {
+    const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
+    
+    if (!apiKey) {
+      console.warn('GOOGLE_CLOUD_API_KEY not configured. OCR will not work.');
+      return null;
+    }
+
+    // Convert File to base64
+    const arrayBuffer = await imageFile.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+    // Google Cloud Vision API endpoint
+    const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+    
+    const requestBody = {
+      requests: [
+        {
+          image: {
+            content: base64,
+          },
+          features: [
+            {
+              type: 'TEXT_DETECTION',
+              maxResults: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Google Vision API OCR error:', {
+        status: response.status,
+        error: errorText,
+      });
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (!data.responses || data.responses.length === 0) {
+      return null;
+    }
+
+    const visionResponse = data.responses[0];
+    
+    // Extract full text from OCR result
+    const extractedText = visionResponse.textAnnotations?.[0]?.description || null;
+    
+    return extractedText;
+  } catch (error) {
+    console.error('OCR extraction error:', error);
+    return null;
+  }
+}
+
+/**
  * Verify drug by image (OCR + verification)
+ * Uses Google Vision API to extract text, then searches for NAFDAC code
  */
 export async function verifyDrugByImage(
   imageFile: File
 ): Promise<VerificationResult> {
-  // TODO: Implement OCR to extract NAFDAC code from image
-  // For now, this is a placeholder that returns mock data
-  
-  // TEMPORARY: Mock implementation
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  try {
+    // Step 1: Extract text from image using OCR
+    const extractedText = await extractTextFromImage(imageFile);
+    
+    if (!extractedText) {
+      // If OCR fails, return unverified result
+      return {
+        drugInfo: {
+          name: 'Unknown Drug',
+          manufacturer: 'Unknown Manufacturer',
+          status: 'unverified',
+        },
+        source: 'unknown',
+      };
+    }
 
-  // In real implementation:
-  // 1. Upload image to OCR service (e.g., Tesseract.js, Google Vision API)
-  // 2. Extract NAFDAC code from image
-  // 3. Call verifyDrugByNAFDAC() with extracted code
+    // Step 2: Search for NAFDAC code in extracted text
+    // NAFDAC code format: XX-XXXX (e.g., 04-1234)
+    const nafdacMatch = extractedText.match(/\b\d{2}-\d{4}\b/);
+    
+    if (nafdacMatch) {
+      // Found NAFDAC code - use main verification flow
+      const nafdacCode = nafdacMatch[0];
+      console.log(`Extracted NAFDAC code from image: ${nafdacCode}`);
+      const result = await verifyDrugByNAFDAC(nafdacCode);
+      // Include the extracted NAFDAC code in the result
+      return {
+        ...result,
+        extractedNafdacCode: nafdacCode,
+      };
+    }
 
-  const mockDrug: Partial<DrugVerification['drugInfo']> = {
-    name: 'Paracetamol 500mg',
-    manufacturer: 'Emzor Pharmaceuticals',
-    status: 'verified',
-    expiryDate: '2025-12-31',
-    batchNumber: 'BATCH-2024-001',
-  };
-
-  return {
-    drugInfo: mockDrug,
-    source: 'database', // Marked as database since it's mock
-  };
+    // Step 3: If no NAFDAC code found, try text search with extracted text
+    // This allows verification by drug name if visible in image
+    console.log('No NAFDAC code found in image, attempting text search...');
+    return await verifyDrugByText(extractedText);
+    
+  } catch (error) {
+    console.error('Image verification error:', error);
+    // Return unverified on error
+    return {
+      drugInfo: {
+        name: 'Unknown Drug',
+        manufacturer: 'Unknown Manufacturer',
+        status: 'unverified',
+      },
+      source: 'unknown',
+    };
+  }
 }
 
 /**

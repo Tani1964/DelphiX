@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { DrugVerification } from '@/types';
 
 export function DrugRegistration() {
   const [nafdacCode, setNafdacCode] = useState('');
@@ -10,7 +9,7 @@ export function DrugRegistration() {
   const [expiryDate, setExpiryDate] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ cid: string; nafdacCode: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,8 +48,12 @@ export function DrugRegistration() {
       setManufacturer('');
       setExpiryDate('');
       setBatchNumber('');
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -106,7 +109,7 @@ export function DrugRegistration() {
               value={nafdacCode}
               onChange={(e) => setNafdacCode(e.target.value)}
               placeholder="e.g., 04-1234"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-black placeholder:text-black/60 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -124,7 +127,7 @@ export function DrugRegistration() {
               value={drugName}
               onChange={(e) => setDrugName(e.target.value)}
               placeholder="e.g., Paracetamol 500mg"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-black placeholder:text-black/60 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -142,7 +145,7 @@ export function DrugRegistration() {
               value={manufacturer}
               onChange={(e) => setManufacturer(e.target.value)}
               placeholder="e.g., Emzor Pharmaceuticals"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-black placeholder:text-black/60 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -159,7 +162,7 @@ export function DrugRegistration() {
               value={batchNumber}
               onChange={(e) => setBatchNumber(e.target.value)}
               placeholder="e.g., BATCH-2024-001"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-black placeholder:text-black/60 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -175,7 +178,7 @@ export function DrugRegistration() {
               type="date"
               value={expiryDate}
               onChange={(e) => setExpiryDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-black placeholder:text-black/60 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>

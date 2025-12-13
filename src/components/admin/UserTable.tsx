@@ -6,6 +6,7 @@ import { User } from '@/types';
 export function UserTable() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -22,6 +23,40 @@ export function UserTable() {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateUserRole = async (userId: string, newRole: 'user' | 'admin') => {
+    if (!userId) return;
+    
+    setUpdating(userId);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Update the user in the local state
+        setUsers(users.map(user => 
+          user._id === userId 
+            ? { ...user, role: newRole }
+            : user
+        ));
+        alert(`User role updated to ${newRole}`);
+      } else {
+        alert(data.error || 'Failed to update user role');
+      }
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      alert('Failed to update user role');
+    } finally {
+      setUpdating(null);
     }
   };
 
@@ -54,6 +89,9 @@ export function UserTable() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Created
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -80,6 +118,25 @@ export function UserTable() {
                   {user.createdAt
                     ? new Date(user.createdAt).toLocaleDateString()
                     : '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  {user.role === 'user' ? (
+                    <button
+                      onClick={() => updateUserRole(user._id!, 'admin')}
+                      disabled={updating === user._id}
+                      className="text-indigo-600 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {updating === user._id ? 'Updating...' : 'Make Admin'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => updateUserRole(user._id!, 'user')}
+                      disabled={updating === user._id}
+                      className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {updating === user._id ? 'Updating...' : 'Remove Admin'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

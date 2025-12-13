@@ -36,7 +36,7 @@ export default async function Home() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-12">
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Welcome to Delphi Health
+            Welcome to DelphiX Health
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Your comprehensive healthcare platform for drug verification, AI-powered
@@ -79,10 +79,10 @@ export default async function Home() {
 
         <div className="mt-12 bg-white rounded-lg shadow-md p-8 border border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            About Delphi Health
+            About DelphiX Health
           </h2>
           <p className="text-gray-600 mb-4">
-            Delphi Health is a comprehensive healthcare platform designed to help
+            DelphiX Health is a comprehensive healthcare platform designed to help
             users verify medications, get preliminary health information, and find
             appropriate medical facilities. Our AI-powered chat system provides
             preliminary diagnoses based on symptoms, while our drug verification

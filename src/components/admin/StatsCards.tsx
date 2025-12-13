@@ -1,6 +1,6 @@
 'use client';
 
-interface StatsCardsProps {
+export interface StatsCardsProps {
   stats: {
     users: {
       total: number;

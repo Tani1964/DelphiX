@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth-config';
 import { updateSOSActivity, checkSOSInactivity } from '@/lib/sos';
 
 export async function POST(request: Request) {

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
 import {
   getUsersCollection,
   getDiagnosesCollection,
@@ -7,6 +6,7 @@ import {
   getSOSEventsCollection,
   getHospitalRecommendationsCollection,
 } from '@/lib/mongodb';
+import { auth } from '@/lib/auth-config';
 
 export async function GET(request: Request) {
   try {

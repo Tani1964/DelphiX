@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth-config';
 import { getDiagnosisFromAI } from '@/lib/openrouter';
 import { getDiagnosesCollection } from '@/lib/mongodb';
 import { Diagnosis, ChatMessage } from '@/types';

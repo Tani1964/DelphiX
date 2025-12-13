@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const method = formData.get('method') as string;
-    const nafdacCode = formData.get('nafdacCode') as string;
+    let nafdacCode = formData.get('nafdacCode') as string;
     const text = formData.get('text') as string;
     const imageFile = formData.get('image') as File | null;
 
@@ -29,6 +29,10 @@ export async function POST(request: Request) {
     if (method === 'image' && imageFile) {
       // Image verification (OCR + verification)
       verificationResult = await verifyDrugByImage(imageFile);
+      // Use extracted NAFDAC code if found
+      if (verificationResult.extractedNafdacCode) {
+        nafdacCode = verificationResult.extractedNafdacCode;
+      }
       // TODO: Upload image to cloud storage and set imageUrl
     } else if (method === 'code' && nafdacCode) {
       // NAFDAC code verification
@@ -43,13 +47,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const { drugInfo, source, ipfsCID } = verificationResult;
+    const { drugInfo, source, ipfsCID, extractedNafdacCode } = verificationResult;
     const result = determineResult(drugInfo);
+
+    // Determine NAFDAC code to store
+    // Priority: extracted from image > provided code > undefined
+    const storedNafdacCode = extractedNafdacCode || (method === 'code' ? nafdacCode : undefined);
 
     // Create verification record
     const verification: Omit<DrugVerification, '_id'> = {
       userId: session.user.id,
-      nafdacCode: method === 'code' ? nafdacCode : undefined,
+      nafdacCode: storedNafdacCode,
       verificationMethod: method as 'code' | 'image' | 'text',
       drugInfo: drugInfo as DrugVerification['drugInfo'],
       imageUrl,

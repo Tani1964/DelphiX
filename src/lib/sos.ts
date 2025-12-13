@@ -13,7 +13,7 @@ export async function activateSOS(userId: string): Promise<SOSEvent> {
   });
 
   if (activeEvent) {
-    return activeEvent as SOSEvent;
+    return activeEvent as unknown as SOSEvent;
   }
 
   // Create new SOS event
@@ -61,7 +61,7 @@ export async function checkSOSInactivity(): Promise<void> {
     .toArray();
 
   for (const event of inactiveEvents) {
-    await requestHelp(event as SOSEvent);
+    await requestHelp(event as unknown as SOSEvent);
   }
 }
 
@@ -69,9 +69,7 @@ async function requestHelp(event: SOSEvent): Promise<void> {
   const sosEvents = await getSOSEventsCollection();
   const users = await getUsersCollection();
 
-  const user = (await users.findOne({
-    _id: event.userId,
-  })) as User | null;
+  const user = await users.findOne({ _id: new ObjectId(event.userId) }) as User | null;
 
   if (!user) {
     return;

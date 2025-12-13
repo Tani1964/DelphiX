@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { StatsCards } from '@/components/admin/StatsCards';
+import { StatsCards, StatsCardsProps } from '@/components/admin/StatsCards';
 import { Charts } from '@/components/admin/Charts';
 import { UserTable } from '@/components/admin/UserTable';
 import { DrugRegistration } from '@/components/admin/DrugRegistration';
+import { DefaultAdminSetup } from '@/components/admin/DefaultAdminSetup';
 
 export default function AdminPage() {
-  const [stats, setStats] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [stats, setStats] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats();
@@ -28,8 +30,12 @@ export default function AdminPage() {
       }
 
       setStats(data);
-    } catch (err) {
-      setError(err.message || 'An error occurred');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -72,13 +78,17 @@ export default function AdminPage() {
         Analytics Dashboard
       </h1>
 
-      <StatsCards stats={stats} />
+      <StatsCards stats={stats as StatsCardsProps['stats']} />
 
       <Charts
         diagnosisTrends={stats.diagnoses.trends || []}
         commonSymptoms={stats.diagnoses.commonSymptoms || []}
         drugVerificationStats={stats.drugVerifications}
       />
+
+      <div className="mb-8">
+        <DefaultAdminSetup />
+      </div>
 
       <div className="mb-8">
         <DrugRegistration />

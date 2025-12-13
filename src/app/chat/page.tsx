@@ -19,7 +19,7 @@ function ChatPageContent() {
         .then((data) => {
           if (data.chatHistory) {
             setInitialMessages(
-              data.chatHistory.map((msg) => ({
+              data.chatHistory.map((msg: { timestamp: string | number | Date; }) => ({
                 ...msg,
                 timestamp: new Date(msg.timestamp),
               }))

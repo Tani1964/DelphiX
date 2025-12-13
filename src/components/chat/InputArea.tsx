@@ -67,22 +67,20 @@ export function InputArea({ onSend, disabled }: InputAreaProps) {
       )}
 
       <form onSubmit={handleSubmit} className="flex items-end space-x-2">
-        <div className="flex-1">
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => {
-              setMessage(e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-            onKeyPress={handleKeyPress}
-            placeholder="Describe your symptoms..."
-            rows={1}
-            disabled={disabled}
-            className="w-full text-gray-900 placeholder:text-gray-900 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
-          />
-        </div>
+        <textarea
+          ref={textareaRef}
+          value={message}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            e.target.style.height = 'auto';
+            e.target.style.height = `${e.target.scrollHeight}px`;
+          }}
+          onKeyPress={handleKeyPress}
+          placeholder="Describe your symptoms..."
+          rows={1}
+          disabled={disabled}
+          className="w-full text-gray-900 placeholder:text-gray-900 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
+        />
         <div className="flex space-x-2">
           <button
             type="button"

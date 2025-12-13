@@ -1,6 +1,129 @@
 import { ChatMessage } from '@/types';
 
 /**
+ * Analyze image using Google Cloud Vision API
+ * Free tier: 1,000 requests per month
+ * Requires GOOGLE_CLOUD_API_KEY environment variable
+ */
+async function analyzeImageWithGoogleVision(imageUrl: string): Promise<string> {
+  try {
+    // Fetch the image file from the server
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
+    
+    const imageResponse = await fetch(fullImageUrl);
+    if (!imageResponse.ok) {
+      throw new Error('Failed to fetch image file');
+    }
+
+    const imageBlob = await imageResponse.blob();
+    const arrayBuffer = await imageBlob.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+    // Get Google Cloud API key
+    const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error(
+        'GOOGLE_CLOUD_API_KEY is required for image analysis. ' +
+        'Please add GOOGLE_CLOUD_API_KEY to your environment variables. ' +
+        'Get your API key from: https://console.cloud.google.com/apis/credentials'
+      );
+    }
+
+    // Google Cloud Vision API endpoint
+    const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+    
+    const requestBody = {
+      requests: [
+        {
+          image: {
+            content: base64,
+          },
+          features: [
+            {
+              type: 'LABEL_DETECTION',
+              maxResults: 10,
+            },
+            {
+              type: 'TEXT_DETECTION',
+              maxResults: 10,
+            },
+            {
+              type: 'OBJECT_LOCALIZATION',
+              maxResults: 10,
+            },
+            {
+              type: 'SAFE_SEARCH_DETECTION',
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorDetails: string;
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        errorDetails = JSON.stringify(errorData, null, 2);
+      } catch {
+        errorDetails = errorText || `HTTP ${response.status} ${response.statusText}`;
+      }
+      
+      console.error('Google Vision API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorDetails,
+      });
+      throw new Error(`Image analysis failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.responses || data.responses.length === 0) {
+      throw new Error('No response from Vision API');
+    }
+
+    const visionResponse = data.responses[0];
+    
+    // Extract relevant information
+    const labels = visionResponse.labelAnnotations?.map((label: { description: string; score: number }) => 
+      `${label.description} (${Math.round(label.score * 100)}% confidence)`
+    ).join(', ') || 'No labels detected';
+    
+    const text = visionResponse.textAnnotations?.[0]?.description || 'No text detected';
+    
+    const objects = visionResponse.localizedObjectAnnotations?.map((obj: { name: string; score: number }) => 
+      `${obj.name} (${Math.round(obj.score * 100)}% confidence)`
+    ).join(', ') || 'No objects detected';
+    
+    // Format the analysis result for medical context
+    const analysisResult = `Image Analysis Results:
+- Detected Objects/Labels: ${labels}
+- Detected Text: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}
+- Localized Objects: ${objects}
+- Safe Search: ${visionResponse.safeSearchAnnotation ? 'Content appears safe' : 'Unable to verify safety'}
+
+Please analyze these findings in the context of medical symptoms.`;
+    
+    return analysisResult;
+  } catch (error) {
+    console.error('Google Vision API error:', error);
+    throw error;
+  }
+}
+
+/**
  * Transcribe audio file to text using OpenAI Whisper API
  * Note: OpenRouter does not support the /audio/transcriptions endpoint,
  * so we must use OpenAI API directly. OPENAI_API_KEY is required.
@@ -83,7 +206,8 @@ export async function getDiagnosisFromAI(
   attachments?: { type: 'image' | 'audio'; url: string }[]
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL || 'amazon/nova-2-lite-v1:free';
+  // Default to Gemini 2.5 Flash for better text conversation (images handled separately by Google Vision)
+  const model = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
 
   if (!apiKey) {
     throw new Error('OpenRouter API key not configured');
@@ -99,69 +223,39 @@ export async function getDiagnosisFromAI(
     content: msg.content,
   }));
 
-  // Handle image attachments first - encode and send as multimodal content
+  // Handle image attachments - analyze with Google Vision API
+  // Images are processed separately and results are added as text to the conversation
   // This must be done before audio to avoid type conflicts
   if (attachments?.some((a) => a.type === 'image')) {
     const imageAttachments = attachments.filter((a) => a.type === 'image');
     if (imageAttachments.length > 0 && formattedMessages.length > 0) {
       const lastMessage = formattedMessages[formattedMessages.length - 1];
       if (lastMessage.role === 'user') {
-        // Fetch and encode images as base64
-        const imageContents: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+        // Analyze each image with Google Vision API
+        const imageAnalyses: string[] = [];
         
-        // Add text content if it exists
-        if (typeof lastMessage.content === 'string' && lastMessage.content.trim()) {
-          imageContents.push({
-            type: 'text',
-            text: lastMessage.content,
-          });
-        } else if (typeof lastMessage.content === 'string') {
-          imageContents.push({
-            type: 'text',
-            text: 'Please analyze this image for medical symptoms.',
-          });
-        }
-        
-        // Fetch and encode each image
         for (const imageAttachment of imageAttachments) {
           try {
-            const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-            const fullImageUrl = imageAttachment.url.startsWith('http') 
-              ? imageAttachment.url 
-              : `${baseUrl}${imageAttachment.url}`;
-            
-            const imageResponse = await fetch(fullImageUrl);
-            if (imageResponse.ok) {
-              const imageBlob = await imageResponse.blob();
-              const arrayBuffer = await imageBlob.arrayBuffer();
-              const base64 = Buffer.from(arrayBuffer).toString('base64');
-              
-              // Determine MIME type
-              const mimeType = imageBlob.type || 'image/jpeg';
-              
-              imageContents.push({
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64}`,
-                },
-              });
-            }
+            const analysisResult = await analyzeImageWithGoogleVision(imageAttachment.url);
+            imageAnalyses.push(analysisResult);
           } catch (error) {
-            console.error('Failed to encode image:', error);
-            // Fallback to text note if image encoding fails
-            if (imageContents.length === 0 || imageContents[imageContents.length - 1].type !== 'text') {
-              imageContents.push({
-                type: 'text',
-                text: '[User has attached an image for analysis]',
-              });
-            }
+            console.error('Failed to analyze image with Google Vision:', error);
+            // Fallback to text note if image analysis fails
+            imageAnalyses.push('[Note: Image analysis failed. Please describe the image in text.]');
           }
         }
         
-        // Update the message with multimodal content
-        if (imageContents.length > 0) {
-          lastMessage.content = imageContents;
-        }
+        // Combine image analysis results with existing text content
+        const existingContent = typeof lastMessage.content === 'string' 
+          ? lastMessage.content 
+          : '';
+        
+        const imageAnalysisText = imageAnalyses.join('\n\n---\n\n');
+        const combinedContent = existingContent
+          ? `${existingContent}\n\n[Image Analysis]:\n${imageAnalysisText}`
+          : `[User has attached ${imageAttachments.length} image(s) for analysis]\n\n${imageAnalysisText}`;
+        
+        lastMessage.content = combinedContent;
       }
     }
   }
@@ -242,7 +336,7 @@ export async function getDiagnosisFromAI(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
         'HTTP-Referer': process.env.NEXTAUTH_URL || 'http://localhost:3000',
-        'X-Title': 'Delphi Healthcare Platform',
+        'X-Title': 'DelphiX Healthcare Platform',
       },
       body: JSON.stringify(requestBody),
     });

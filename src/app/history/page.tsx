@@ -29,8 +29,12 @@ export default function HistoryPage() {
       }
 
       setDiagnoses(data.diagnoses || []);
-    } catch (err) {
-      setError(err.message || 'An error occurred');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An error occurred');
+      }
     } finally {
       setLoading(false);
     }

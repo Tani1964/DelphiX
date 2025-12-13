@@ -36,7 +36,7 @@ IPFS pinning services keep your files accessible on the IPFS network. Choose one
 1. Sign up at https://www.pinata.cloud/
 2. Go to **API Keys** in your dashboard
 3. Click **New Key**
-4. Give it a name (e.g., "Delphi Health")
+4. Give it a name (e.g., "DelphiX Health")
 5. Copy your:
    - **API Key** (starts with something like `a1b2c3d4...`)
    - **Secret API Key** (starts with something like `e5f6g7h8...`)

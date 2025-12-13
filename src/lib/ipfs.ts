@@ -85,12 +85,18 @@ export async function uploadDrugToIPFS(
       success: true,
       cid: data.IpfsHash, // Pinata returns IpfsHash as the CID
     };
-  } catch (error: any) {
-    console.error('Error uploading to IPFS:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to upload to IPFS',
-    };
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    } else {
+      return {
+        success: false,
+        error: 'An error occurred',
+      };
+    }
   }
 }
 
