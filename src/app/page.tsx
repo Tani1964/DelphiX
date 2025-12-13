@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { getServerSession } from '@/lib/auth-helpers';
+import { auth } from '@/lib/auth-config';
 
 export default async function Home() {
-  const session = await getServerSession();
+  const session = await auth();
 
   const features = [
     {

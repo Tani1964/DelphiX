@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/auth-helpers';
+import { auth } from '@/lib/auth-config';
 import { registerDrugToIPFS } from '@/lib/drug-verification';
 import { DrugVerification } from '@/types';
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await auth();
     
     // Check if user is admin
     if (!session?.user?.id || session.user.role !== 'admin') {

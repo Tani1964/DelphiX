@@ -1,28 +1,8 @@
-import { cookies } from 'next/headers';
+import { auth } from '@/lib/auth-config';
 
-// For NextAuth v5 beta, getServerSession is not exported from 'next-auth'
-// We fetch the session from the NextAuth session API endpoint
+// Use NextAuth v5's auth() function for server-side session access
+// This works properly in Vercel/serverless environments
 export async function getServerSession() {
-  try {
-    const cookieStore = await cookies();
-    const allCookies = cookieStore.getAll();
-    const cookieHeader = allCookies.map(c => `${c.name}=${c.value}`).join('; ');
-    
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/auth/session`, {
-      headers: {
-        cookie: cookieHeader,
-      },
-      cache: 'no-store',
-    });
-    
-    if (!response.ok) {
-      return null;
-    }
-    
-    const session = await response.json();
-    return session?.user ? session : null;
-  } catch (error) {
-    return null;
-  }
+  const session = await auth();
+  return session;
 }

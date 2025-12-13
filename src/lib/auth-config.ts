@@ -91,9 +91,10 @@ export const authOptions = {
   },
   session: {
     strategy: 'jwt' as const,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.AUTH_SECRET,
-  trustHost: true,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  trustHost: true, // Required for Vercel deployments
 };
 
 export const { handlers, auth } = NextAuth(authOptions);

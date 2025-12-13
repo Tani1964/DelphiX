@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/auth-helpers';
+import { auth } from '@/lib/auth-config';
 import {
   verifyDrugByNAFDAC,
   verifyDrugByImage,
@@ -11,7 +11,7 @@ import { DrugVerification } from '@/types';
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
