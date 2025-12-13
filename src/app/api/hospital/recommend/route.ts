@@ -42,19 +42,41 @@ export async function POST(request: Request) {
 
     // Update user location
     const users = await getUsersCollection();
-    await users.updateOne(
-      { _id: new ObjectId(session.user.id) },
-      {
-        $set: {
-          location: {
-            lat,
-            lng,
-            address: '', // Could be geocoded if needed
-          },
-          updatedAt: new Date(),
-        },
+    // Validate ObjectId before using it
+    if (!ObjectId.isValid(session.user.id)) {
+      console.error('Invalid user ID format:', session.user.id);
+      // Try to find user by email as fallback
+      const user = await users.findOne({ email: session.user.email });
+      if (user) {
+        await users.updateOne(
+          { _id: user._id },
+          {
+            $set: {
+              location: {
+                lat,
+                lng,
+                address: '', // Could be geocoded if needed
+              },
+              updatedAt: new Date(),
+            },
+          }
+        );
       }
-    );
+    } else {
+      await users.updateOne(
+        { _id: new ObjectId(session.user.id) },
+        {
+          $set: {
+            location: {
+              lat,
+              lng,
+              address: '', // Could be geocoded if needed
+            },
+            updatedAt: new Date(),
+          },
+        }
+      );
+    }
 
     return NextResponse.json({
       hospitals,

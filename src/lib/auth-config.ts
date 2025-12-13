@@ -56,7 +56,7 @@ export const authOptions = {
 
         if (!existingUser) {
           // Create new user from Google OAuth
-          await users.insertOne({
+          const result = await users.insertOne({
             email: user.email,
             name: user.name || '',
             role: 'user',
@@ -64,15 +64,33 @@ export const authOptions = {
             createdAt: new Date(),
             updatedAt: new Date(),
           });
+          // Set user ID for the JWT callback
+          user.id = result.insertedId.toString();
+        } else {
+          // Set user ID from existing user
+          user.id = existingUser._id?.toString() || '';
+          user.role = existingUser.role || 'user';
         }
       }
       return true;
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async jwt({ token, user }: { token: any; user?: any }) {
+    async jwt({ token, user, account }: { token: any; user?: any; account?: any }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role || 'user';
+        // For Google OAuth, user.id should be set in signIn callback
+        // For credentials, user.id is already set in authorize
+        if (user.id) {
+          token.id = user.id;
+          token.role = user.role || 'user';
+        } else if (account?.provider === 'google' && user.email) {
+          // Fallback: fetch user from database if ID not set
+          const users = await getUsersCollection();
+          const dbUser = await users.findOne({ email: user.email });
+          if (dbUser) {
+            token.id = dbUser._id?.toString() || '';
+            token.role = dbUser.role || 'user';
+          }
+        }
       }
       return token;
     },
