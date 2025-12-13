@@ -5,7 +5,21 @@ if (!process.env.MONGODB_URI) {
 }
 
 const uri: string = process.env.MONGODB_URI;
-const options = {};
+const options = {
+  // Connection timeout settings
+  connectTimeoutMS: 10000, // 10 seconds to establish connection
+  socketTimeoutMS: 45000, // 45 seconds for socket operations
+  serverSelectionTimeoutMS: 10000, // 10 seconds to select a server
+  // Connection pool settings
+  maxPoolSize: 10, // Maximum number of connections in the pool
+  minPoolSize: 1, // Minimum number of connections
+  maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+  // Retry settings
+  retryWrites: true,
+  retryReads: true,
+  // Heartbeat settings to keep connection alive
+  heartbeatFrequencyMS: 10000,
+};
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
@@ -23,9 +37,17 @@ if (process.env.NODE_ENV === 'development') {
   }
   clientPromise = globalWithMongo._mongoClientPromise;
 } else {
-  // In production mode, it's best to not use a global variable.
-  client = new MongoClient(uri, options);
-  clientPromise = client.connect();
+  // In production mode, use a global variable for serverless environments
+  // This ensures connection reuse across function invocations
+  const globalWithMongo = global as typeof globalThis & {
+    _mongoClientPromise?: Promise<MongoClient>;
+  };
+
+  if (!globalWithMongo._mongoClientPromise) {
+    client = new MongoClient(uri, options);
+    globalWithMongo._mongoClientPromise = client.connect();
+  }
+  clientPromise = globalWithMongo._mongoClientPromise;
 }
 
 // Export a module-scoped MongoClient promise. By doing this in a
