@@ -7,18 +7,40 @@ import { ChatMessage } from '@/types';
  */
 async function analyzeImageWithGoogleVision(imageUrl: string): Promise<string> {
   try {
-    // Fetch the image file from the server
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
+    let base64: string;
     
-    const imageResponse = await fetch(fullImageUrl);
-    if (!imageResponse.ok) {
-      throw new Error('Failed to fetch image file');
+    // Try to read from filesystem first (more reliable)
+    if (imageUrl.startsWith('/uploads/')) {
+      const { readFile } = await import('fs/promises');
+      const { join } = await import('path');
+      const filepath = join(process.cwd(), 'public', imageUrl);
+      try {
+        const fileBuffer = await readFile(filepath);
+        base64 = fileBuffer.toString('base64');
+      } catch (fsError) {
+        console.warn('Failed to read image from filesystem, trying HTTP fetch:', fsError);
+        // Fallback to HTTP fetch
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const fullImageUrl = `${baseUrl}${imageUrl}`;
+        const imageResponse = await fetch(fullImageUrl);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to fetch image file: ${imageResponse.status} ${imageResponse.statusText}`);
+        }
+        const imageBlob = await imageResponse.blob();
+        const arrayBuffer = await imageBlob.arrayBuffer();
+        base64 = Buffer.from(arrayBuffer).toString('base64');
+      }
+    } else {
+      // External URL or full URL
+      const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}${imageUrl}`;
+      const imageResponse = await fetch(fullImageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image file: ${imageResponse.status} ${imageResponse.statusText}`);
+      }
+      const imageBlob = await imageResponse.blob();
+      const arrayBuffer = await imageBlob.arrayBuffer();
+      base64 = Buffer.from(arrayBuffer).toString('base64');
     }
-
-    const imageBlob = await imageResponse.blob();
-    const arrayBuffer = await imageBlob.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
 
     // Get Google Cloud API key
     const apiKey = process.env.GOOGLE_CLOUD_API_KEY;
@@ -130,18 +152,48 @@ Please analyze these findings in the context of medical symptoms.`;
  */
 async function transcribeAudio(audioUrl: string): Promise<string> {
   try {
-    // Fetch the audio file from the server
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const fullAudioUrl = audioUrl.startsWith('http') ? audioUrl : `${baseUrl}${audioUrl}`;
+    let fileBuffer: Buffer;
+    let filename = 'audio.webm';
     
-    const audioResponse = await fetch(fullAudioUrl);
-    if (!audioResponse.ok) {
-      throw new Error('Failed to fetch audio file');
+    // Try to read from filesystem first (more reliable)
+    if (audioUrl.startsWith('/uploads/')) {
+      const { readFile } = await import('fs/promises');
+      const { join, basename } = await import('path');
+      const filepath = join(process.cwd(), 'public', audioUrl);
+      try {
+        fileBuffer = await readFile(filepath);
+        filename = basename(audioUrl);
+      } catch (fsError) {
+        console.warn('Failed to read audio from filesystem, trying HTTP fetch:', fsError);
+        // Fallback to HTTP fetch
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const fullAudioUrl = `${baseUrl}${audioUrl}`;
+        const audioResponse = await fetch(fullAudioUrl);
+        if (!audioResponse.ok) {
+          throw new Error(`Failed to fetch audio file: ${audioResponse.status} ${audioResponse.statusText}`);
+        }
+        const audioBlob = await audioResponse.blob();
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        fileBuffer = Buffer.from(arrayBuffer);
+      }
+    } else {
+      // External URL or full URL
+      const fullAudioUrl = audioUrl.startsWith('http') ? audioUrl : `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}${audioUrl}`;
+      const audioResponse = await fetch(fullAudioUrl);
+      if (!audioResponse.ok) {
+        throw new Error(`Failed to fetch audio file: ${audioResponse.status} ${audioResponse.statusText}`);
+      }
+      const audioBlob = await audioResponse.blob();
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
     }
-
-    const audioBlob = await audioResponse.blob();
+    
+    // Create FormData - in Node.js 18+, FormData accepts Buffer directly
     const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.webm');
+    // Convert Buffer to Uint8Array for File constructor
+    const uint8Array = new Uint8Array(fileBuffer);
+    const file = new File([uint8Array], filename, { type: 'audio/webm' });
+    formData.append('file', file);
     formData.append('model', 'whisper-1');
 
     // OpenRouter doesn't support audio transcription endpoint (returns 405)
@@ -240,8 +292,13 @@ export async function getDiagnosisFromAI(
             imageAnalyses.push(analysisResult);
           } catch (error) {
             console.error('Failed to analyze image with Google Vision:', error);
-            // Fallback to text note if image analysis fails
-            imageAnalyses.push('[Note: Image analysis failed. Please describe the image in text.]');
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            // Include error details in the fallback message
+            imageAnalyses.push(
+              `[Note: Image analysis failed (${errorMessage}). ` +
+              `Please ensure GOOGLE_CLOUD_API_KEY is set and the image is accessible. ` +
+              `Please describe the image in text.]`
+            );
           }
         }
         
@@ -292,25 +349,30 @@ export async function getDiagnosisFromAI(
         }
       } catch (error) {
         console.error('Failed to transcribe audio:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         // Don't throw - gracefully handle by adding a note to the message
         if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === 'user') {
           const lastMessage = formattedMessages[formattedMessages.length - 1];
           
+          const failureNote = `\n\n[Note: Audio transcription failed (${errorMessage}). ` +
+            `Please ensure OPENAI_API_KEY is set and the audio file is accessible. ` +
+            `Please describe your symptoms in text.]`;
+          
           if (Array.isArray(lastMessage.content)) {
             lastMessage.content.push({
               type: 'text',
-              text: '\n\n[Note: Audio transcription failed. Please describe your symptoms in text.]',
+              text: failureNote,
             });
           } else {
             const existingContent = lastMessage.content as string;
             lastMessage.content = existingContent
-              ? `${existingContent}\n\n[Note: Audio transcription failed. Please describe your symptoms in text.]`
-              : 'I sent an audio message, but it could not be transcribed. Please describe your symptoms in text.';
+              ? `${existingContent}${failureNote}`
+              : `I sent an audio message, but it could not be transcribed (${errorMessage}). Please describe your symptoms in text.`;
           }
         } else {
           formattedMessages.push({
             role: 'user',
-            content: 'I sent an audio message, but it could not be transcribed. Please describe your symptoms in text.',
+            content: `I sent an audio message, but it could not be transcribed (${errorMessage}). Please describe your symptoms in text.`,
           });
         }
       }

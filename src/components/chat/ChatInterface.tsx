@@ -61,10 +61,13 @@ export function ChatInterface({
           body: formData,
         });
 
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          attachmentUrl = uploadData.url;
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json().catch(() => ({ error: 'Upload failed' }));
+          throw new Error(`Failed to upload ${attachment.type}: ${errorData.error || 'Unknown error'}`);
         }
+
+        const uploadData = await uploadResponse.json();
+        attachmentUrl = uploadData.url;
       }
 
       // Send message to API

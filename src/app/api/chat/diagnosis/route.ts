@@ -43,7 +43,14 @@ export async function POST(request: Request) {
       : [userMessage];
 
     // Get AI response
-    const aiResponse = await getDiagnosisFromAI(chatHistory, attachment ? [attachment] : undefined);
+    let aiResponse: string;
+    try {
+      aiResponse = await getDiagnosisFromAI(chatHistory, attachment ? [attachment] : undefined);
+    } catch (error) {
+      console.error('Error in getDiagnosisFromAI:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to process diagnosis: ${errorMessage}`);
+    }
 
     const assistantMessage: ChatMessage = {
       role: 'assistant',
