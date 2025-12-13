@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
 
 export async function POST(request: Request) {
   try {
@@ -22,24 +19,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // In production, upload to cloud storage (Cloudinary, AWS S3, etc.)
-    // For now, save to public/uploads directory
+    // Convert file to base64 data URL for Vercel/serverless compatibility
+    // Vercel serverless functions have a read-only filesystem, so we can't write files
+    // Instead, we return a base64 data URL that can be used directly
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const base64 = buffer.toString('base64');
+    const mimeType = file.type || 'application/octet-stream';
+    const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    const uploadsDir = join(process.cwd(), 'public', 'uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    const filename = `${Date.now()}-${file.name}`;
-    const filepath = join(uploadsDir, filename);
-
-    await writeFile(filepath, buffer);
-
-    const url = `/uploads/${filename}`;
-
-    return NextResponse.json({ url, type });
+    // Return data URL instead of filesystem path
+    // The client and other APIs can use this directly
+    return NextResponse.json({ 
+      url: dataUrl, 
+      type,
+      // Also provide a reference URL for backwards compatibility
+      reference: `data:${mimeType};base64,${base64.substring(0, 50)}...`
+    });
   } catch (error) {
     console.error('File upload error:', error);
     return NextResponse.json(

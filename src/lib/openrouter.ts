@@ -9,8 +9,18 @@ async function analyzeImageWithGoogleVision(imageUrl: string): Promise<string> {
   try {
     let base64: string;
     
-    // Try to read from filesystem first (more reliable)
-    if (imageUrl.startsWith('/uploads/')) {
+    // Handle data URLs (base64) - common in serverless environments like Vercel
+    if (imageUrl.startsWith('data:')) {
+      // Extract base64 data from data URL: data:mime/type;base64,<data>
+      const base64Match = imageUrl.match(/^data:[^;]+;base64,(.+)$/);
+      if (base64Match && base64Match[1]) {
+        base64 = base64Match[1];
+      } else {
+        throw new Error('Invalid data URL format');
+      }
+    }
+    // Try to read from filesystem (development/local only)
+    else if (imageUrl.startsWith('/uploads/')) {
       const { readFile } = await import('fs/promises');
       const { join } = await import('path');
       const filepath = join(process.cwd(), 'public', imageUrl);
