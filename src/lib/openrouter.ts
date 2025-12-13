@@ -165,8 +165,32 @@ async function transcribeAudio(audioUrl: string): Promise<string> {
     let fileBuffer: Buffer;
     let filename = 'audio.webm';
     
-    // Try to read from filesystem first (more reliable)
-    if (audioUrl.startsWith('/uploads/')) {
+    // Handle data URLs (base64) - common in serverless environments like Vercel
+    if (audioUrl.startsWith('data:')) {
+      // Extract base64 data from data URL: data:mime/type;base64,<data>
+      const base64Match = audioUrl.match(/^data:[^;]+;base64,(.+)$/);
+      if (base64Match && base64Match[1]) {
+        fileBuffer = Buffer.from(base64Match[1], 'base64');
+        // Extract mime type to determine file extension
+        const mimeMatch = audioUrl.match(/^data:([^;]+)/);
+        if (mimeMatch && mimeMatch[1]) {
+          const mimeType = mimeMatch[1];
+          if (mimeType.includes('webm')) {
+            filename = 'audio.webm';
+          } else if (mimeType.includes('mp3')) {
+            filename = 'audio.mp3';
+          } else if (mimeType.includes('wav')) {
+            filename = 'audio.wav';
+          } else if (mimeType.includes('m4a')) {
+            filename = 'audio.m4a';
+          }
+        }
+      } else {
+        throw new Error('Invalid data URL format for audio');
+      }
+    }
+    // Try to read from filesystem (development/local only)
+    else if (audioUrl.startsWith('/uploads/')) {
       const { readFile } = await import('fs/promises');
       const { join, basename } = await import('path');
       const filepath = join(process.cwd(), 'public', audioUrl);
